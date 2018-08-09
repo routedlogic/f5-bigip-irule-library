@@ -1,0 +1,49 @@
+# routedlogic.apm.procs.irule
+#
+# This library has the following prerequisites:
+#   - routedlogic.ltm.procs.irule
+#
+
+proc server_side_collect_and_remove_cookies { apm_sid {} apm_session_variable_name_prefix {session.custom.app.last} } {
+  if { ${apm_sid} != {} } {
+    if { [HTTP::header exists Set-Cookie] } {
+      # add current set of cookies to list
+      set cookie_list [list]
+      if { [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookies] != {} } {
+        set cookie_list [split [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookies] {,}]
+      }
+
+      # build a sorted unique list of cookie names from existing and currently returned named
+      set cookie_list [lsort -unique [concat ${cookie_list} [HTTP::cookie names]]]
+
+      # store the resulting list of all cookies ever received from this application
+      ACCESS::session data set -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookies [join ${cookie_list} {,}]
+
+      # update the stored value for any cookies that just got returned
+      foreach cookie_name [HTTP::cookie names] {
+        # use session variables to store cookies ?
+        ACCESS::session data set -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookie.${cookie_name} [lindex [split [HTTP::cookie value ${cookie_name}] {;}] 0]
+      }
+
+      # remove the header to ensure no cookies return to client
+      HTTP::header remove Set-Cookie
+    }
+  }
+}
+
+proc server_side_insert_cookies { apm_sid {} apm_session_variable_name_prefix {session.custom.app.last} } {
+  if { ${apm_sid} != {} } {
+    # add server side cookies previously stored and removed from server side response
+    if { ${apm_sid} != {} and [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookies] != {} } {
+      # add all stored cookies previously collected from server side
+      foreach cookie_name [split [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookies] {,}] {
+        if { [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookie.${cookie_name}] != {} } {
+          # add cookie to request
+          HTTP::cookie insert name ${cookie_name} value [ACCESS::session data get -sid ${apm_sid} ${apm_session_variable_name_prefix}.cookie.${cookie_name}]
+        }
+      }
+    }
+  }
+}
+
+# EOR
