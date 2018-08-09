@@ -1,0 +1,84 @@
+# routedlogic.procs.irule
+
+proc collect_http_payload { { max_length 1048577 } } {
+  # used to trigger HTTP payload collection in a consistently safe/sane way
+
+  if { [HTTP::header exists "Content-Length"] } {
+    set content_length [HTTP::header "Content-Length"]
+  } else {
+    set content_length 0
+  }
+
+  # content_length of 0 indicates chunked data (of unknown size)
+  if { ${content_length} > 0 && ${content_length} < ${max_length} } {
+    set collect_length ${content_length}
+  } else {
+    set collect_length [${max_length} - 1]
+  }
+
+  if { ${collect_length} > 0 } {
+    HTTP::collect ${collect_length}
+  }
+
+  # return collection length to indicate what we wound up doing
+  # > 0 indicates collection will be attempted
+  return ${collect_length}
+}
+
+proc hash_extraction_form_response { { form_method {post} } } {
+  # send back a form that will extract the hash fragment content, in entirety, from the URL in the browser
+  # the form will send this back to the same URL using configurable method. POST is default, dont use GET unless
+  # you have a good reason to do so, as the information in the fragment may be sensitive.
+
+  HTTP::respond 200 content "<html>
+  <head>
+    <script language=\"javascript\">
+    function onLoadSubmit() {
+      document.getElementById(\"fragment\").value = window.location.hash.substr(1);
+      document.hashFragmentForm.submit();
+    }
+    </script>
+  </head>
+  <body onload=\"onLoadSubmit()\">
+    <form name=\"hashFragmentForm\" id=\"hashFragmentForm\" method=\"${form_method}\">
+      <input type=\"hidden\" name=\"fragment\" id=\"fragment\" value=\"\" />
+    </form>
+  </body>
+</html>"
+
+  return
+}
+
+proc hash_extraction_from_payload { } {
+  if { [HTTP::payload] contains {fragment=} } {
+    # return decoded fragment value
+    # decode required as fragment=blah%3Dblah%26asdf%3Dasdf%0A should be the format we see it as
+    return [URI::decode [URI::query "?[HTTP::payload]" fragment]]
+  } else {
+    # doesnt look like there was a fragment parameter in there at all, return nada
+    return {}
+  }
+}
+
+proc postBackToMyDotPolicy { } {
+  # single place to manage how BIG-IP will respond to the URLs we have to collect hash fragments from
+  # add headers or change the response code etc here as required
+
+  HTTP::respond 200 content "<html>
+  <head>
+    <script language=\"javascript\">
+    function onLoadSubmit() {
+      document.hashFragmentForm.submit();
+    }
+    </script>
+  </head>
+  <body onload=\"onLoadSubmit()\">
+    <form name=\"hashFragmentForm\" id=\"hashFragmentForm\" method=\"post\" action=\"/my.policy\">
+    </form>
+  </body>
+</html>"
+
+  return
+}
+
+# EOR
