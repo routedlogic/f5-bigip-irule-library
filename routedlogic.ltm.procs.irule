@@ -1,4 +1,28 @@
-# routedlogic.procs.irule
+# routedlogic.ltm.procs.irule
+#
+# This library has the following prerequisites:
+#   - none
+#
+
+proc http_200_response { } {
+  # procedure defined to provide single location to view/modify behaviour and content
+  HTTP::respond 200 -version auto content "<html><body><h1>Invalid Response Received</h1><p>Please close this browser tab and try your search again.</p></body></html>"
+}
+
+proc http_401_response { } {
+  # procedure defined to provide single location to view/modify behaviour and content
+  HTTP::respond 401 -version auto content "<html><body><h1>Authentication Required</h1><p></p></body></html>"
+}
+
+proc http_403_response { } {
+  # procedure defined to provide single location to view/modify behaviour and content
+  HTTP::respond 403 -version auto content "<html><body><h1>Forbidden</h1><p></p></body></html>"
+}
+
+proc http_503_response { } {
+  # procedure defined to provide single location to view/modify behaviour and content
+  HTTP::respond 503 -version auto content "<html><body><h1>Unavaiable</h1><p></p></body></html>"
+}
 
 proc collect_http_payload { { max_length 1048577 } } {
   # used to trigger HTTP payload collection in a consistently safe/sane way
