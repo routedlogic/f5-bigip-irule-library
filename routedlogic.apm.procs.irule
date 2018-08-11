@@ -4,6 +4,28 @@
 #   - routedlogic.ltm.procs.irule
 #
 
+proc apm_policy_apply { policy_name {FIXME} } {
+  # APM policies do not commit in a reliable manner when configured via iApp.
+  # This time-bomb script insures that the policy gets committed.
+  # See subcase SR1-315233635 for details.
+  if { [catch {
+      set dir [tmsh::pwd]
+      set fn "/var/tmp/iapp_${policy_name}.sh"
+      set fh [open $fn w]
+      puts $fh "sleep 5"
+      puts $fh "tmsh modify apm profile access ${dir}/${policy_name} generation-action increment"
+      close $fh
+      exec chmod 777 $fn
+      exec $fn &
+  } err] } {
+    # indicate apply probably failed
+    return 0
+  } else {
+    # indicate apply should be successful
+    return 1
+  }
+}
+
 proc server_side_collect_and_remove_cookies { apm_sid {} apm_session_variable_name_prefix {session.custom.app.last} } {
   if { ${apm_sid} != {} } {
     if { [HTTP::header exists Set-Cookie] } {
